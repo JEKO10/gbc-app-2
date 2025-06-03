@@ -1,11 +1,13 @@
 {
   "expo": {
-    "name": "gbc",
-    "slug": "gbc",
+    "name": "General Bilimoria's Canteen",
+    "displayName": "General Bilimoria's Canteen",
+    "slug": "GBC",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "icon": "./assets/images/small-logo.png",
+    "assetBundlePatterns": ["**/*"],
+    "scheme": "GBC",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,26 +15,28 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/small-logo.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.generalbilimoria.canteen"
     },
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/small-logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/small-logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "experiments": {
       "typedRoutes": true
