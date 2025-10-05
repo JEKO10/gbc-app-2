@@ -10,12 +10,12 @@ const OrderCard = React.memo(
     item,
     liveOrders,
     updateOrderStatus,
-    sdkVersion,
-  }: {
+  }: // sdkVersion,
+  {
     item: Order;
     liveOrders: Order[];
     updateOrderStatus: (id: string, status: string) => void;
-    sdkVersion: "v1" | "v2";
+    // sdkVersion: "v1" | "v2";
   }) => {
     const isLive = liveOrders.some((o) => o.id === item.id);
 
@@ -95,7 +95,8 @@ const OrderCard = React.memo(
                 borderRadius: 10,
                 alignItems: "center",
               }}
-              onPress={() => printOrder(item, sdkVersion)}
+              onPress={() => printOrder(item)}
+              // onPress={() => printOrder(item, sdkVersion)}
             >
               <Text
                 style={{

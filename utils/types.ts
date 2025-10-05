@@ -24,4 +24,5 @@ export interface Order {
   restaurant: {
     name: string;
   };
+  // DAJ MU jedinstveni i stranicu QR KOD DA VERIFIKUJE ORDER
 }

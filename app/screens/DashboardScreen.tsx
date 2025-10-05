@@ -39,7 +39,7 @@ const DashboardScreen = () => {
   const [activeTab, setActiveTab] = useState("Pending");
   const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [sdkVersion, setSdkVersion] = useState<"v1" | "v2">("v2");
+  // const [sdkVersion, setSdkVersion] = useState<"v1" | "v2">("v2");
   const [printerStatus, setPrinterStatus] = useState<string>("");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantId, setRestaurantId] = useState("");
@@ -62,7 +62,7 @@ const DashboardScreen = () => {
 
       if (Platform.OS === "android") {
         await Notifications.setNotificationChannelAsync("orders", {
-          name: "New Orders",
+          name: "New Order",
           importance: Notifications.AndroidImportance.MAX,
           sound: "default",
           vibrationPattern: [0, 250, 250, 250],
@@ -92,8 +92,8 @@ const DashboardScreen = () => {
 
         await fetchOrders(token);
 
-        const version = await PrinterSDK.version;
-        setSdkVersion(version.toLowerCase().startsWith("v1") ? "v1" : "v2");
+        // const version = await PrinterSDK.version;
+        // setSdkVersion(version.toLowerCase().startsWith("v1") ? "v1" : "v2");
 
         PrinterSDK.getPrinterStatus().then((info) => {
           setPrinterStatus(info.message);
@@ -119,7 +119,7 @@ const DashboardScreen = () => {
         setLiveOrders,
         setSoundObj,
         setIsPlaying,
-        sdkVersion,
+        // sdkVersion,
         setPusherState,
         setNotificationId
       );
@@ -323,7 +323,7 @@ const DashboardScreen = () => {
               item={item}
               liveOrders={liveOrders}
               updateOrderStatus={updateOrderStatus}
-              sdkVersion={sdkVersion}
+              // sdkVersion={sdkVersion}
             />
           );
         }}
@@ -355,65 +355,151 @@ const DashboardScreen = () => {
         <Modal animationType="fade" transparent={true} visible={true}>
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
-              <Text style={styles.modalTitle}>🔔 New order!</Text>
               <Text style={styles.modalSubtitle}>
-                Tap below to stop it and move the newest order to “Preparing”
+                New order received! Do you want to accept or reject it?
               </Text>
 
-              <TouchableOpacity
-                style={styles.stopButton}
-                onPress={async () => {
-                  await soundObj.stopAsync();
-                  await soundObj.unloadAsync();
-                  setSoundObj(null);
-                  setIsPlaying(false);
-
-                  if (notificationId) {
-                    await Notifications.dismissNotificationAsync(
-                      notificationId
-                    );
-                    setNotificationId(null);
-                  }
-
-                  const pendingOrders = liveOrders
-                    .filter((order) => order.status === "Pending")
-                    .sort(
-                      (a, b) =>
-                        new Date(b.createdAt).getTime() -
-                        new Date(a.createdAt).getTime()
-                    );
-
-                  const newestPending = pendingOrders[0];
-                  if (newestPending) {
-                    await updateOrderStatus(newestPending.id, "Preparing");
-
-                    if (Platform.OS === "android") {
-                      ToastAndroid.show(
-                        `Order #${
-                          newestPending.orderNumber.split("-")[1]
-                        } moved to Preparing`,
-                        ToastAndroid.SHORT
-                      );
-                    } else {
-                      Alert.alert(
-                        "Order Updated",
-                        `Order #${
-                          newestPending.orderNumber.split("-")[1]
-                        } is now Preparing`
-                      );
-                    }
-                  } else {
+              <View style={{ flexDirection: "row", gap: 12 }}>
+                <TouchableOpacity
+                  style={[styles.stopButton, { backgroundColor: "#10b981" }]}
+                  onPress={() => {
                     Alert.alert(
-                      "No Pending Orders",
-                      "There were no pending orders to update."
+                      "Confirm Acceptance",
+                      "Are you sure you want to accept this order?",
+                      [
+                        {
+                          text: "Cancel",
+                          style: "cancel",
+                        },
+                        {
+                          text: "Yes, Accept",
+                          style: "default",
+                          onPress: async () => {
+                            if (soundObj) {
+                              try {
+                                await soundObj.stopAsync();
+                                await soundObj.unloadAsync();
+                              } catch (err) {
+                                console.error("🔊 Error stopping sound:", err);
+                              }
+                              setSoundObj(null);
+                              setIsPlaying(false);
+                            }
+
+                            if (notificationId) {
+                              await Notifications.dismissNotificationAsync(
+                                notificationId
+                              );
+                              setNotificationId(null);
+                            }
+
+                            const newestPending = [...liveOrders]
+                              .filter((order) => order.status === "Pending")
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.createdAt).getTime() -
+                                  new Date(a.createdAt).getTime()
+                              )[0];
+
+                            if (newestPending) {
+                              await updateOrderStatus(
+                                newestPending.id,
+                                "Preparing"
+                              );
+                              Platform.OS === "android"
+                                ? ToastAndroid.show(
+                                    "Order accepted",
+                                    ToastAndroid.SHORT
+                                  )
+                                : Alert.alert(
+                                    "Accepted",
+                                    "Order moved to Preparing (Accepted)"
+                                  );
+                            } else {
+                              Alert.alert(
+                                "No Pending Orders",
+                                "Nothing to accept."
+                              );
+                            }
+                          },
+                        },
+                      ]
                     );
-                  }
-                }}
-              >
-                <Text style={styles.stopButtonText}>
-                  🛑 Stop Alarm & Move Order to Preparing
-                </Text>
-              </TouchableOpacity>
+                  }}
+                >
+                  <Text style={styles.stopButtonText}>✅ Accept</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.stopButton, { backgroundColor: "#ef4444" }]}
+                  onPress={() => {
+                    Alert.alert(
+                      "Confirm Rejection",
+                      "Are you sure you want to reject this order?",
+                      [
+                        {
+                          text: "Cancel",
+                          style: "cancel",
+                        },
+                        {
+                          text: "Yes, Reject",
+                          style: "destructive",
+                          onPress: async () => {
+                            if (soundObj) {
+                              try {
+                                await soundObj.stopAsync();
+                                await soundObj.unloadAsync();
+                              } catch (err) {
+                                console.error("🔊 Error stopping sound:", err);
+                              }
+                              setSoundObj(null);
+                              setIsPlaying(false);
+                            }
+
+                            if (notificationId) {
+                              await Notifications.dismissNotificationAsync(
+                                notificationId
+                              );
+                              setNotificationId(null);
+                            }
+
+                            const newestPending = [...liveOrders]
+                              .filter((order) => order.status === "Pending")
+                              .sort(
+                                (a, b) =>
+                                  new Date(b.createdAt).getTime() -
+                                  new Date(a.createdAt).getTime()
+                              )[0];
+
+                            if (newestPending) {
+                              await updateOrderStatus(
+                                newestPending.id,
+                                "Rejected"
+                              );
+                              Platform.OS === "android"
+                                ? ToastAndroid.show(
+                                    "Order rejected",
+                                    ToastAndroid.SHORT
+                                  )
+                                : Alert.alert(
+                                    "Rejected",
+                                    "Order marked as Rejected"
+                                  );
+                            } else {
+                              Alert.alert(
+                                "No Pending Orders",
+                                "Nothing to reject."
+                              );
+                            }
+                          },
+                        },
+                      ]
+                    );
+                  }}
+                >
+                  <Text style={styles.stopButtonText}>❌ Reject</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </Modal>

@@ -12,7 +12,7 @@ export const setupPusher = async (
   setOrders: SetState<Order[]>,
   setSoundObj: SetState<Audio.Sound | null>,
   setIsPlaying: SetState<boolean>,
-  sdkVersion: "v1" | "v2",
+  // sdkVersion: "v1" | "v2",
   setPusherState: SetState<string>,
   setNotificationId: SetState<string | null>
 ): Promise<void> => {
@@ -64,6 +64,19 @@ export const setupPusher = async (
           return [data, ...prev];
         });
 
+        setTimeout(() => {
+          if (data?.user?.name && data?.items?.length > 0) {
+            printOrder(data).catch((err) =>
+              console.error("❌ Auto-print failed:", err)
+            );
+          } else {
+            console.warn("⚠️ Skipped auto-print: Incomplete order data", data);
+          }
+        }, 1000);
+
+        // await printOrder(data);
+        // await printOrder(data, sdkVersion);
+
         await Notifications.scheduleNotificationAsync({
           content: {
             title: "📦 New Order Received!",
@@ -92,8 +105,6 @@ export const setupPusher = async (
           await sound.playAsync();
           setSoundObj(sound);
           setIsPlaying(true);
-
-          await printOrder(data, sdkVersion);
 
           setTimeout(async () => {
             await sound.stopAsync();

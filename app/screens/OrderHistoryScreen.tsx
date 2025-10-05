@@ -99,7 +99,7 @@ export default function OrderHistoryScreen() {
             item={item}
             liveOrders={[]}
             updateOrderStatus={() => {}}
-            sdkVersion="v2"
+            // sdkVersion="v2"
           />
         )}
       />
