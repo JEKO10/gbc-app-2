@@ -9,7 +9,6 @@ interface SidebarProps {
   onLogout: () => void;
   onSummary: () => void;
   pusherStatus: string;
-  printerStatus: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -20,7 +19,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onSummary,
   pusherStatus,
-  printerStatus,
 }) => {
   if (!visible) return null;
 
@@ -55,9 +53,6 @@ const Sidebar: React.FC<SidebarProps> = ({
               <Text style={styles.statusText}>
                 🔌 Notification: {pusherStatus}
               </Text>
-            )}
-            {printerStatus && (
-              <Text style={styles.statusText}>🖨️ Printer: {printerStatus}</Text>
             )}
             <Text
               style={[

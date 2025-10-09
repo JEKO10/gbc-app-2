@@ -21,11 +21,11 @@ import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import OrderCard from "../components/OrderCard";
 
-import PrinterSDK from "react-native-printer-imin";
 import { setupPusher } from "@/utils/pusher";
 import { Order } from "@/utils/types";
 import { statusOrder } from "@/constants/statusOrder";
 import Sidebar from "../components/Sidebar";
+import { Pusher } from "@pusher/pusher-websocket-react-native";
 
 interface DecodedToken extends JwtPayload {
   restaurantId: string;
@@ -40,7 +40,6 @@ const DashboardScreen = () => {
   const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   // const [sdkVersion, setSdkVersion] = useState<"v1" | "v2">("v2");
-  const [printerStatus, setPrinterStatus] = useState<string>("");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantId, setRestaurantId] = useState("");
   const [sidebarVisible, setSidebarVisible] = useState(false);
@@ -94,10 +93,6 @@ const DashboardScreen = () => {
 
         // const version = await PrinterSDK.version;
         // setSdkVersion(version.toLowerCase().startsWith("v1") ? "v1" : "v2");
-
-        PrinterSDK.getPrinterStatus().then((info) => {
-          setPrinterStatus(info.message);
-        });
       } catch {
         Alert.alert("Session expired", "Please log in again.");
         await AsyncStorage.removeItem("token");
@@ -116,6 +111,7 @@ const DashboardScreen = () => {
     const initPusher = async () => {
       await setupPusher(
         restaurantId,
+        restaurantName,
         setLiveOrders,
         setSoundObj,
         setIsPlaying,
@@ -190,6 +186,8 @@ const DashboardScreen = () => {
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const token = await AsyncStorage.getItem("token");
+      if (!token) throw new Error("No token found");
+
       const res = await fetch(
         `https://www.gbcanteen.com/api/orders/${orderId}`,
         {
@@ -202,7 +200,22 @@ const DashboardScreen = () => {
         }
       );
 
-      if (!res.ok) throw new Error("Failed to update status");
+      if (!res.ok) throw new Error("Failed to update status in backend");
+
+      const pusher = Pusher.getInstance();
+      const payload = {
+        orderId,
+        status: newStatus,
+        timestamp: new Date().toISOString(),
+      };
+
+      await pusher.trigger({
+        channelName: `restaurant-${restaurantId}`,
+        eventName: "order-status-update",
+        data: JSON.stringify(payload),
+      });
+
+      console.log("📤 Sent status update:", payload);
 
       setLiveOrders((prev) =>
         prev.map((order) =>
@@ -210,7 +223,7 @@ const DashboardScreen = () => {
         )
       );
     } catch (err) {
-      console.error("Error updating status:", err);
+      console.error("❌ Error updating order status:", err);
       Alert.alert("Error", "Failed to update order status.");
     }
   };
@@ -348,7 +361,6 @@ const DashboardScreen = () => {
           setSidebarVisible(false);
         }}
         pusherStatus={pusherState}
-        printerStatus={printerStatus}
       />
 
       {soundObj && isPlaying && (

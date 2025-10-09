@@ -123,7 +123,6 @@ export default function OrderHistoryScreen() {
           setSidebarVisible(false);
         }}
         pusherStatus={""}
-        printerStatus={""}
       />
     </View>
   );

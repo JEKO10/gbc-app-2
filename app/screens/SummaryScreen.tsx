@@ -151,7 +151,6 @@ export default function AllSummaryScreen() {
           setSidebarVisible(false);
         }}
         pusherStatus={""}
-        printerStatus={""}
       />
     </View>
   );

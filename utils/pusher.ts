@@ -3,12 +3,12 @@ import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Order } from "./types";
-import { printOrder } from "./print";
 
 type SetState<T> = React.Dispatch<React.SetStateAction<T>>;
 
 export const setupPusher = async (
   restaurantId: string,
+  restaurantName: string,
   setOrders: SetState<Order[]>,
   setSoundObj: SetState<Audio.Sound | null>,
   setIsPlaying: SetState<boolean>,
@@ -63,16 +63,6 @@ export const setupPusher = async (
           if (exists) return prev;
           return [data, ...prev];
         });
-
-        setTimeout(() => {
-          if (data?.user?.name && data?.items?.length > 0) {
-            printOrder(data).catch((err) =>
-              console.error("❌ Auto-print failed:", err)
-            );
-          } else {
-            console.warn("⚠️ Skipped auto-print: Incomplete order data", data);
-          }
-        }, 1000);
 
         // await printOrder(data);
         // await printOrder(data, sdkVersion);

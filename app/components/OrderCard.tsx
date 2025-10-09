@@ -1,6 +1,5 @@
 import { Order } from "@/utils/types";
 import { Picker } from "@react-native-picker/picker";
-import { printOrder } from "@/utils/print";
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { statusOrder } from "@/constants/statusOrder";
@@ -95,7 +94,6 @@ const OrderCard = React.memo(
                 borderRadius: 10,
                 alignItems: "center",
               }}
-              onPress={() => printOrder(item)}
               // onPress={() => printOrder(item, sdkVersion)}
             >
               <Text
