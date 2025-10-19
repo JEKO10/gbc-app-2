@@ -202,21 +202,6 @@ const DashboardScreen = () => {
 
       if (!res.ok) throw new Error("Failed to update status in backend");
 
-      const pusher = Pusher.getInstance();
-      const payload = {
-        orderId,
-        status: newStatus,
-        timestamp: new Date().toISOString(),
-      };
-
-      await pusher.trigger({
-        channelName: `restaurant-${restaurantId}`,
-        eventName: "order-status-update",
-        data: JSON.stringify(payload),
-      });
-
-      console.log("📤 Sent status update:", payload);
-
       setLiveOrders((prev) =>
         prev.map((order) =>
           order.id === orderId ? { ...order, status: newStatus } : order
