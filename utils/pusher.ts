@@ -1,10 +1,11 @@
+import type { Dispatch, SetStateAction } from "react";
 import { Pusher, PusherEvent } from "@pusher/pusher-websocket-react-native";
-import * as Notifications from "expo-notifications";
+import notifee from "@notifee/react-native";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Order } from "./types";
 
-type SetState<T> = React.Dispatch<React.SetStateAction<T>>;
+type SetState<T> = Dispatch<SetStateAction<T>>;
 
 export const setupPusher = async (
   restaurantId: string,
@@ -67,16 +68,23 @@ export const setupPusher = async (
         // await printOrder(data);
         // await printOrder(data, sdkVersion);
 
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: "📦 New Order Received!",
-            body: `Order #${data.orderNumber.split("-")[1]} from ${
-              data.user.name
-            }`,
+        const notificationId = await notifee.displayNotification({
+          title: "📦 New Order Received!",
+          body: `Order #${data.orderNumber.split("-")[1]} from ${
+            data.user.name
+          }`,
+          android: {
+            channelId: "orders",
+            sound: "default",
+            pressAction: {
+              id: "default",
+            },
+          },
+          ios: {
             sound: "default",
           },
-          trigger: null,
-        }).then((id) => setNotificationId(id));
+        });
+        setNotificationId(notificationId);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
         try {

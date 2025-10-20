@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Stack } from "expo-router";
 import {
   useFonts,
@@ -7,7 +7,10 @@ import {
   Outfit_700Bold,
 } from "@expo-google-fonts/outfit";
 import * as SplashScreen from "expo-splash-screen";
-import { View, ActivityIndicator } from "react-native";
+import { View, ActivityIndicator, Platform } from "react-native";
+import notifee, { EventType, NotifeeEvent } from "@notifee/react-native";
+
+import "@/notifications/background";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -17,6 +20,30 @@ export default function RootLayout() {
     Outfit_600SemiBold,
     Outfit_700Bold,
   });
+
+  useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
+    const unsubscribeForeground = notifee.onForegroundEvent(
+      async ({ type, detail }: NotifeeEvent) => {
+        if (
+          type === EventType.ACTION_PRESS ||
+          type === EventType.PRESS
+        ) {
+          const notificationId = detail.notification?.id;
+          if (notificationId) {
+            await notifee.cancelNotification(notificationId);
+          }
+        }
+      }
+    );
+
+    return () => {
+      unsubscribeForeground();
+    };
+  }, []);
 
   if (!fontsLoaded) {
     return (
