@@ -38,7 +38,7 @@ export default function AllSummaryScreen() {
       if (!token) return;
 
       try {
-        const res = await fetch("https://www.gbcanteen.com/api/orders", {
+        const res = await fetch("http://192.168.0.91:3000/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
 

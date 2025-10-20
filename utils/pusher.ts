@@ -20,8 +20,6 @@ export const setupPusher = async (
 
   setPusherState("Initializing...");
 
-  console.log("🟡 Initializing Pusher...");
-
   try {
     await pusher.disconnect();
     console.log("🔌 Cleaned old connection");

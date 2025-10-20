@@ -102,6 +102,8 @@ const DashboardScreen = () => {
       }
     };
 
+    console.log(pusherState);
+
     init();
   }, [router]);
 
@@ -163,7 +165,7 @@ const DashboardScreen = () => {
 
   const fetchOrders = async (token: string) => {
     try {
-      const res = await fetch("https://www.gbcanteen.com/api/orders", {
+      const res = await fetch("http://192.168.0.91:3000/api/orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -189,7 +191,7 @@ const DashboardScreen = () => {
       if (!token) throw new Error("No token found");
 
       const res = await fetch(
-        `https://www.gbcanteen.com/api/orders/${orderId}`,
+        `http://192.168.0.91:3000/api/orders/${orderId}`,
         {
           method: "PATCH",
           headers: {
