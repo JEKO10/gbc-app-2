@@ -25,7 +25,6 @@ import { setupPusher } from "@/utils/pusher";
 import { Order } from "@/utils/types";
 import { statusOrder } from "@/constants/statusOrder";
 import Sidebar from "../components/Sidebar";
-import { Pusher } from "@pusher/pusher-websocket-react-native";
 
 interface DecodedToken extends JwtPayload {
   restaurantId: string;
@@ -90,9 +89,6 @@ const DashboardScreen = () => {
         setRestaurantId(decoded.restaurantId);
 
         await fetchOrders(token);
-
-        // const version = await PrinterSDK.version;
-        // setSdkVersion(version.toLowerCase().startsWith("v1") ? "v1" : "v2");
       } catch {
         Alert.alert("Session expired", "Please log in again.");
         await AsyncStorage.removeItem("token");
@@ -101,8 +97,6 @@ const DashboardScreen = () => {
         setLoading(false);
       }
     };
-
-    console.log(pusherState);
 
     init();
   }, [router]);
