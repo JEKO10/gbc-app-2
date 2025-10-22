@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -24,6 +24,7 @@ import OrderCard from "../components/OrderCard";
 import { setupPusher } from "@/utils/pusher";
 import { Order } from "@/utils/types";
 import { statusOrder } from "@/constants/statusOrder";
+import { theme } from "@/constants/theme";
 import Sidebar from "../components/Sidebar";
 
 interface DecodedToken extends JwtPayload {
@@ -225,6 +226,37 @@ const DashboardScreen = () => {
     {} as { [key: string]: number }
   );
 
+  const metrics = useMemo(
+    () => [
+      {
+        label: "Live Orders",
+        value: liveOrders.length,
+        color: theme.colors.primary,
+      },
+      {
+        label: "Pending",
+        value: statusCounts["Pending"] || 0,
+        color: theme.colors.warning,
+      },
+      {
+        label: "Preparing",
+        value: statusCounts["Preparing"] || 0,
+        color: theme.colors.primaryDark,
+      },
+      {
+        label: "Ready",
+        value: statusCounts["Ready"] || 0,
+        color: theme.colors.accent,
+      },
+    ],
+    [
+      liveOrders.length,
+      statusCounts["Pending"] || 0,
+      statusCounts["Preparing"] || 0,
+      statusCounts["Ready"] || 0,
+    ]
+  );
+
   if (loading) {
     return (
       <View style={styles.centered}>
@@ -237,11 +269,17 @@ const DashboardScreen = () => {
     <View style={styles.container}>
       <View style={styles.topBar}>
         <View style={styles.topWrapper}>
-          <Image
-            source={require("../../assets/images/small-logo.png")}
-            style={styles.logo}
-            resizeMode="contain"
-          />
+          <View style={styles.brandingGroup}>
+            <Image
+              source={require("../../assets/images/small-logo.png")}
+              style={styles.logo}
+              resizeMode="contain"
+            />
+            <View style={styles.brandTextGroup}>
+              <Text style={styles.headerText}>Live Orders</Text>
+              <Text style={styles.restaurantName}>{restaurantName}</Text>
+            </View>
+          </View>
 
           <TouchableOpacity
             onPress={() => setSidebarVisible(true)}
@@ -251,26 +289,34 @@ const DashboardScreen = () => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.headerContent}>
-          <Text style={styles.headerText}>Live Orders</Text>
-          <Text style={styles.restaurantName}>{restaurantName}</Text>
+        <View style={styles.statusBanner}>
+          <Text style={styles.statusLabel}>Notification Status</Text>
           <Text
             style={[
-              styles.restaurantName,
-              {
-                color:
-                  pusherState === "CONNECTED"
-                    ? "green"
-                    : pusherState === "CONNECTING"
-                    ? "orange"
-                    : "red",
-              },
+              styles.statusValue,
+              pusherState === "CONNECTED"
+                ? styles.statusConnected
+                : pusherState === "CONNECTING"
+                ? styles.statusConnecting
+                : styles.statusOffline,
             ]}
           >
-            Notification Status: {pusherState}
+            {pusherState}
           </Text>
         </View>
       </View>
+
+      <View style={styles.metricsRow}>
+        {metrics.map((metric) => (
+          <View key={metric.label} style={styles.metricCard}>
+            <Text style={styles.metricLabel}>{metric.label}</Text>
+            <Text style={[styles.metricValue, { color: metric.color }]}>
+              {metric.value}
+            </Text>
+          </View>
+        ))}
+      </View>
+
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -282,21 +328,25 @@ const DashboardScreen = () => {
             onPress={() => setActiveTab(tab)}
             style={[styles.tab, activeTab === tab && styles.activeTab]}
           >
-            <View style={styles.tabContent}>
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === tab && styles.activeTabText,
-                ]}
+            <Text
+              style={[styles.tabText, activeTab === tab && styles.activeTabText]}
+            >
+              {tab}
+            </Text>
+            {(statusCounts[tab] || 0) > 0 && (
+              <View
+                style={[styles.badge, activeTab === tab && styles.activeBadge]}
               >
-                {tab}
-              </Text>
-              {(statusCounts[tab] || 0) > 0 && (
-                <View style={styles.badge}>
-                  <Text style={styles.badgeText}>{statusCounts[tab]}</Text>
-                </View>
-              )}
-            </View>
+                <Text
+                  style={[
+                    styles.badgeText,
+                    activeTab === tab && styles.activeBadgeText,
+                  ]}
+                >
+                  {statusCounts[tab]}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -307,20 +357,25 @@ const DashboardScreen = () => {
         windowSize={7}
         data={filteredOrders}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle=
+          {filteredOrders.length === 0
+            ? styles.emptyContainer
+            : styles.listContent}
         ListEmptyComponent={
-          <Text style={styles.emptyText}>No {activeTab} orders</Text>
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No {activeTab} orders</Text>
+            <Text style={styles.emptySubtitle}>
+              Orders that match this status will appear here instantly.
+            </Text>
+          </View>
         }
-        renderItem={({ item }) => {
-          return (
-            <OrderCard
-              item={item}
-              liveOrders={liveOrders}
-              updateOrderStatus={updateOrderStatus}
-              // sdkVersion={sdkVersion}
-            />
-          );
-        }}
+        renderItem={({ item }) => (
+          <OrderCard
+            item={item}
+            liveOrders={liveOrders}
+            updateOrderStatus={updateOrderStatus}
+          />
+        )}
       />
       <Sidebar
         visible={sidebarVisible}
@@ -352,7 +407,7 @@ const DashboardScreen = () => {
                 New order received! Do you want to accept or reject it?
               </Text>
 
-              <View style={{ flexDirection: "row", gap: 12 }}>
+              <View style={styles.modalActions}>
                 <TouchableOpacity
                   style={[styles.stopButton, { backgroundColor: "#10b981" }]}
                   onPress={() => {
@@ -502,6 +557,201 @@ const DashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  centered: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: theme.colors.background,
+  },
+  topBar: {
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderColor: theme.colors.border,
+    ...theme.shadow.card,
+  },
+  topWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  brandingGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  brandTextGroup: {
+    marginLeft: theme.spacing.md,
+  },
+  logo: {
+    width: 64,
+    height: 64,
+  },
+  headerText: {
+    fontSize: 24,
+    fontFamily: "Outfit_700Bold",
+    color: theme.colors.text,
+  },
+  restaurantName: {
+    fontSize: 15,
+    color: theme.colors.muted,
+    fontFamily: "Outfit_400Regular",
+    marginTop: 4,
+  },
+  hamburgerWrapper: {
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    backgroundColor: "#eef2ff",
+  },
+  hamburger: {
+    fontSize: 24,
+    color: theme.colors.primaryDark,
+  },
+  statusBanner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radii.sm,
+    backgroundColor: "#eef2ff",
+  },
+  statusLabel: {
+    fontSize: 14,
+    color: theme.colors.muted,
+    fontFamily: "Outfit_600SemiBold",
+  },
+  statusValue: {
+    fontSize: 14,
+    fontFamily: "Outfit_700Bold",
+    textTransform: "uppercase",
+  },
+  statusConnected: {
+    color: theme.colors.accent,
+  },
+  statusConnecting: {
+    color: theme.colors.warning,
+  },
+  statusOffline: {
+    color: theme.colors.danger,
+  },
+  metricsRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+  },
+  metricCard: {
+    width: "48%",
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    ...theme.shadow.card,
+  },
+  metricLabel: {
+    fontSize: 13,
+    color: theme.colors.muted,
+    fontFamily: "Outfit_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  metricValue: {
+    fontSize: 28,
+    fontFamily: "Outfit_700Bold",
+    marginTop: 4,
+  },
+  tabList: {
+    flexDirection: "row",
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+  },
+  tab: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    backgroundColor: "#e5e7ff",
+    marginRight: theme.spacing.sm,
+  },
+  activeTab: {
+    backgroundColor: theme.colors.primary,
+  },
+  tabText: {
+    fontSize: 14,
+    fontFamily: "Outfit_600SemiBold",
+    color: theme.colors.primaryDark,
+  },
+  activeTabText: {
+    color: "#fff",
+  },
+  badge: {
+    marginLeft: theme.spacing.xs,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+    backgroundColor: "rgba(37, 99, 235, 0.15)",
+  },
+  activeBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+  },
+  badgeText: {
+    fontSize: 12,
+    fontFamily: "Outfit_600SemiBold",
+    color: theme.colors.primaryDark,
+  },
+  activeBadgeText: {
+    color: "#fff",
+  },
+  listContent: {
+    flexGrow: 1,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xl * 1.5,
+    paddingTop: theme.spacing.sm,
+  },
+  emptyContainer: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: theme.spacing.lg,
+  },
+  emptyState: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.radii.md,
+    padding: theme.spacing.lg,
+    alignItems: "center",
+    ...theme.shadow.card,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: "Outfit_700Bold",
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: theme.colors.muted,
+    fontFamily: "Outfit_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  modalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    marginTop: theme.spacing.sm,
+  },
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -509,217 +759,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     padding: 20,
   },
-
   modalContent: {
     backgroundColor: "white",
-    borderRadius: 12,
+    borderRadius: theme.radii.lg,
     padding: 30,
     alignItems: "center",
-    width: "100%",
-    maxWidth: 400,
+    width: "90%",
+    maxWidth: 420,
   },
-
-  modalTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 12,
-    textAlign: "center",
-    color: "#dc2626",
-  },
-
   modalSubtitle: {
-    fontSize: 15,
-    color: "#555",
+    fontSize: 16,
+    color: theme.colors.muted,
+    fontFamily: "Outfit_400Regular",
     textAlign: "center",
-    marginBottom: 20,
+    marginBottom: 18,
   },
-
   stopButton: {
-    backgroundColor: "#dc2626",
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-
-  stopButtonText: {
-    color: "white",
-    fontSize: 13,
-    fontWeight: "bold",
-  },
-
-  tabContent: {
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  badge: {
-    position: "absolute",
-    top: -6,
-    right: -22,
-    backgroundColor: "#ef4444",
-    borderRadius: 12,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
-  badgeText: {
-    color: "white",
-    fontSize: 12,
-    fontWeight: "bold",
-  },
-
-  header: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-  },
-  subheader: {
-    fontSize: 16,
-    marginBottom: 10,
-    textAlign: "center",
-    color: "#333",
-  },
-  container: { flex: 1, backgroundColor: "#fff" },
-  centered: { flex: 1, justifyContent: "center", alignItems: "center" },
-  topBar: {
-    paddingHorizontal: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderColor: "#eee",
-    alignItems: "flex-start",
-  },
-
-  topWrapper: {
-    width: "100%",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  hamburgerWrapper: {
-    padding: 6,
-    borderRadius: 8,
-    backgroundColor: "#f3f4f6",
-    elevation: 2,
-  },
-
-  hamburger: {
-    fontSize: 24,
-    color: "#1f2937",
-  },
-
-  headerContent: {
-    alignSelf: "flex-start",
-    marginBottom: 10,
-  },
-
-  headerText: {
-    fontSize: 22,
-    fontWeight: "bold",
-    color: "#1f2937",
-    fontFamily: "Outfit_400Regular",
-  },
-
-  restaurantName: {
-    fontSize: 16,
-    color: "#6b7280",
-    fontFamily: "Outfit_400Regular",
-  },
-
-  logo: {
-    width: 120,
-    height: 120,
-    alignSelf: "flex-start",
-  },
-
-  branding: {
     flex: 1,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radii.md,
     alignItems: "center",
+    marginHorizontal: theme.spacing.xs,
   },
-
-  topRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-
-  pageTitle: { fontSize: 22, fontWeight: "bold" },
-  statusText: { color: "#999", marginTop: 4 },
-  tabList: {
-    height: 60,
-    flexDirection: "row",
-    paddingTop: 6,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "#ddd",
-    paddingHorizontal: 10,
-  },
-  tab: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    marginRight: 6,
-    height: 32,
-  },
-  activeTab: {
-    borderBottomWidth: 5,
-    borderBottomColor: "#007bff",
-    backgroundColor: "#e6f0ff",
-  },
-  tabItem: {
-    marginRight: 20,
-    paddingBottom: 5,
-  },
-  tabLabel: {
+  stopButtonText: {
     fontSize: 16,
-    color: "#888",
+    color: "#fff",
+    fontFamily: "Outfit_600SemiBold",
   },
-  tabText: {
-    fontSize: 15,
-    lineHeight: 18,
-    color: "#777",
-    fontFamily: "Outfit_700Bold",
-  },
-  activeTabText: {
-    color: "#007bff",
-    fontWeight: "bold",
-  },
-  orderCard: {
-    backgroundColor: "#f9f9f9",
-    margin: 10,
-    padding: 15,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  orderHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  orderId: { fontWeight: "bold" },
-  statusBadge: {
-    backgroundColor: "#007bff",
-    color: "white",
-    paddingHorizontal: 10,
-    borderRadius: 20,
-    fontSize: 12,
-    paddingVertical: 2,
-    overflow: "hidden",
-  },
-  orderInfo: { fontSize: 14, marginBottom: 2 },
-  itemRow: { fontSize: 13, marginLeft: 8, color: "#444" },
-  totalAmount: { fontWeight: "bold", marginTop: 6 },
-  picker: { height: 70, width: "100%", marginTop: 10 },
-  emptyText: { textAlign: "center", color: "#aaa", marginTop: 30 },
 });
 
 export default DashboardScreen;
