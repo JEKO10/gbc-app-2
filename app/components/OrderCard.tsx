@@ -2,22 +2,16 @@ import { Order } from "@/utils/types";
 import { Picker } from "@react-native-picker/picker";
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 import { statusOrder } from "@/constants/statusOrder";
-import { theme } from "@/constants/theme";
 
-const statusColors: Record<string, string> = {
-  Pending: theme.colors.warning,
-  Rejected: theme.colors.danger,
-  Preparing: theme.colors.primaryDark,
-  Ready: theme.colors.accent,
-  Dispatched: theme.colors.primary,
-  Completed: theme.colors.success,
-  Cancelled: theme.colors.danger,
-};
-
-const formatStatus = (status?: string) => {
-  if (!status) return "Unknown";
-  return status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
+const STATUS_COLORS: Record<string, { background: string; text: string }> = {
+  Pending: { background: "#fef9c3", text: "#a16207" },
+  Preparing: { background: "rgba(34, 197, 94, 0.12)", text: "#16a34a" },
+  Ready: { background: "rgba(34, 197, 94, 0.12)", text: "#16a34a" },
+  Completed: { background: "rgba(79, 70, 229, 0.12)", text: "#4f46e5" },
+  Rejected: { background: "rgba(248, 113, 113, 0.14)", text: "#dc2626" },
+  Cancelled: { background: "rgba(148, 163, 184, 0.16)", text: "#475569" },
 };
 
 const OrderCard = React.memo(
@@ -25,18 +19,18 @@ const OrderCard = React.memo(
     item,
     liveOrders,
     updateOrderStatus,
-  }: // sdkVersion,
-  {
+  }: {
     item: Order;
     liveOrders: Order[];
     updateOrderStatus: (id: string, status: string) => void;
-    // sdkVersion: "v1" | "v2";
   }) => {
     const isLive = liveOrders.some((o) => o.id === item.id);
-    const displayStatus = formatStatus(item.status);
-    const statusColor =
-      statusColors[displayStatus as keyof typeof statusColors] ||
-      theme.colors.primary;
+    const statusPalette = STATUS_COLORS[item.status] ??
+      STATUS_COLORS.Pending ?? {
+        background: "rgba(148,163,184,0.18)",
+        text: "#334155",
+      };
+
     const currentIndex = statusOrder.indexOf(item.status);
     let allowedStatuses = statusOrder.slice(currentIndex + 1);
 
@@ -52,113 +46,110 @@ const OrderCard = React.memo(
       ...allowedStatuses.filter((s) => s !== item.status),
     ];
 
-    const orderNumber = item.orderNumber?.split("-")[1] || item.orderNumber;
+    const orderNumber = item.orderNumber.split("-")[1] || item.orderNumber;
+    const formattedTime = new Date(item.createdAt).toLocaleString();
 
     return (
       <View style={styles.card}>
         <View style={styles.headerRow}>
           <View style={styles.headerLeft}>
-            <View style={styles.orderNumberRow}>
-              <Text style={styles.orderId}>#{orderNumber}</Text>
-              {isLive && <Text style={styles.liveBadge}>Live</Text>}
+            <View style={styles.orderIdPill}>
+              <Text style={styles.orderIdText}>#{orderNumber}</Text>
             </View>
-            <Text style={styles.timestamp}>
-              {new Date(item.createdAt).toLocaleString()}
+            {isLive && (
+              <View style={styles.liveBadge}>
+                <Text style={styles.liveBadgeText}>Live</Text>
+              </View>
+            )}
+          </View>
+          <View
+            style={[
+              styles.statusPill,
+              { backgroundColor: statusPalette.background },
+            ]}
+          >
+            <Text style={[styles.statusText, { color: statusPalette.text }]}>
+              {item.status}
             </Text>
           </View>
-
-          <View style={[styles.statusPill, { backgroundColor: statusColor }]}>
-            <Text style={styles.statusPillText}>{displayStatus}</Text>
-          </View>
         </View>
 
-        <View style={styles.divider} />
-
-        <View style={styles.detailsRow}>
-          <View style={styles.detailBlock}>
-            <Text style={styles.detailLabel}>Customer</Text>
-            <Text style={styles.detailValue}>{item.user.name}</Text>
-          </View>
-          <View style={styles.detailBlock}>
-            <Text style={styles.detailLabel}>Phone</Text>
-            <Text style={styles.detailValue}>{item.user.phone}</Text>
-          </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="person-circle-outline" size={18} color="#1f2937" />
+          <Text style={styles.metaText}>{item.user.name}</Text>
         </View>
-
-        <View style={styles.detailBlockFull}>
-          <Text style={styles.detailLabel}>Delivery Address</Text>
-          <Text style={styles.detailValue}>
-            {item.user.address || item.user.googleAddress}
+        <View style={styles.metaRow}>
+          <Ionicons name="call-outline" size={18} color="#1f2937" />
+          <Text style={styles.metaText}>{item.user.phone}</Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="location-outline" size={18} color="#1f2937" />
+          <Text style={styles.metaText} numberOfLines={2}>
+            {item.user.address || item.user.googleAddress || "Collection"}
           </Text>
+        </View>
+        <View style={styles.metaRow}>
+          <Ionicons name="time-outline" size={18} color="#1f2937" />
+          <Text style={styles.metaText}>{formattedTime}</Text>
         </View>
 
         {item.orderNote ? (
-          <View style={styles.detailBlockFull}>
-            <Text style={styles.detailLabel}>Special Notes</Text>
-            <Text style={styles.detailValue}>{item.orderNote}</Text>
+          <View style={styles.noteBox}>
+            <Ionicons
+              name="information-circle-outline"
+              size={18}
+              color="#2563eb"
+            />
+            <Text style={styles.noteText}>{item.orderNote}</Text>
           </View>
         ) : null}
 
-        <View style={styles.itemsContainer}>
+        <View style={styles.itemsWrapper}>
           <Text style={styles.sectionTitle}>Items</Text>
-          {item.items.map((itm, idx) => {
-            const priceDisplay =
-              typeof itm.price === "number"
-                ? itm.price.toFixed(2)
-                : itm.price;
-
-            return (
-              <View
-                key={`${item.id}-item-${idx}`}
-                style={[
-                  styles.itemRow,
-                  idx === item.items.length - 1 && styles.lastItemRow,
-                ]}
-              >
-                <View>
-                  <Text style={styles.itemName}>{itm.title}</Text>
-                  <Text style={styles.itemMeta}>Qty {itm.quantity}</Text>
-                </View>
-                <Text style={styles.itemPrice}>£{priceDisplay}</Text>
-              </View>
-            );
-          })}
+          {item.items.map((itm, idx) => (
+            <View key={`${item.id}-${idx}`} style={styles.itemRow}>
+              <Ionicons name="ellipse-outline" size={10} color="#94a3b8" />
+              <Text style={styles.itemText}>
+                {itm.quantity}× {itm.title} • £{itm.price}
+              </Text>
+            </View>
+          ))}
         </View>
 
-        <View style={styles.footerRow}>
-          <Text style={styles.totalAmount}>
-            Total £{(item.amount / 100).toFixed(2)}
+        <View style={styles.totalRow}>
+          <Text style={styles.totalLabel}>Total</Text>
+          <Text style={styles.totalValue}>
+            £{(item.amount / 100).toFixed(2)}
           </Text>
         </View>
 
         {isLive && (
-          <View style={styles.actionsSection}>
+          <>
             {allowedStatuses.length > 0 && (
-              <View style={styles.pickerContainer}>
-                <Text style={styles.detailLabel}>Update Status</Text>
-                <View style={styles.pickerWrapper}>
-                  <Picker
-                    selectedValue={item.status}
-                    style={styles.picker}
-                    dropdownIconColor={theme.colors.primaryDark}
-                    onValueChange={(value) => updateOrderStatus(item.id, value)}
-                  >
-                    {allowedStatuses.map((statusOption) => (
-                      <Picker.Item
-                        key={statusOption}
-                        label={statusOption}
-                        value={statusOption}
-                      />
-                    ))}
-                  </Picker>
-                </View>
+              <View style={styles.pickerWrapper}>
+                <Picker
+                  selectedValue={item.status}
+                  style={styles.picker}
+                  dropdownIconColor="#2563eb"
+                  onValueChange={(value) => updateOrderStatus(item.id, value)}
+                >
+                  {allowedStatuses.map((statusOption) => (
+                    <Picker.Item
+                      key={statusOption}
+                      label={statusOption}
+                      value={statusOption}
+                      color="#0f172a"
+                    />
+                  ))}
+                </Picker>
               </View>
             )}
 
             <TouchableOpacity style={styles.printButton}>
+              <Ionicons name="print-outline" size={18} color="#ffffff" />
               <Text style={styles.printButtonText}>Print Ticket</Text>
             </TouchableOpacity>
-          </View>
+          </>
         )}
       </View>
     );
@@ -169,170 +160,151 @@ export default OrderCard;
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: theme.colors.surface,
-    marginHorizontal: theme.spacing.lg,
-    marginVertical: theme.spacing.sm,
-    padding: theme.spacing.lg,
-    borderRadius: theme.radii.lg,
-    ...theme.shadow.card,
+    backgroundColor: "#ffffff",
+    borderRadius: 22,
+    padding: 20,
+    marginHorizontal: 4,
+    marginVertical: 10,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    elevation: 3,
   },
   headerRow: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "flex-start",
+    marginBottom: 16,
   },
   headerLeft: {
-    flex: 1,
-  },
-  orderNumberRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 10,
   },
-  orderId: {
-    fontFamily: "Outfit_700Bold",
-    fontSize: 20,
-    color: theme.colors.text,
-  },
-  liveBadge: {
-    marginLeft: theme.spacing.sm,
-    backgroundColor: theme.colors.accent,
-    color: "#fff",
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: 4,
-    borderRadius: 999,
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 12,
-    textTransform: "uppercase",
-  },
-  timestamp: {
-    marginTop: 4,
-    fontSize: 13,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_400Regular",
-  },
-  statusPill: {
-    borderRadius: 999,
-    paddingHorizontal: theme.spacing.md,
+  orderIdPill: {
+    paddingHorizontal: 14,
     paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "rgba(37,99,235,0.12)",
   },
-  statusPillText: {
-    color: "#fff",
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 13,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
-    marginVertical: theme.spacing.md,
-  },
-  detailsRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-  detailBlock: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
-  },
-  detailBlockFull: {
-    marginTop: theme.spacing.sm,
-  },
-  detailLabel: {
-    fontSize: 12,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  detailValue: {
-    fontSize: 15,
-    color: theme.colors.text,
-    fontFamily: "Outfit_400Regular",
-    marginTop: 4,
-    lineHeight: 20,
-  },
-  itemsContainer: {
-    marginTop: theme.spacing.lg,
-  },
-  sectionTitle: {
+  orderIdText: {
+    height: 25,
     fontFamily: "Outfit_700Bold",
     fontSize: 16,
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
+    color: "#1d4ed8",
+  },
+  statusPill: {
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+  },
+  statusText: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+  },
+  liveBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(34,197,94,0.16)",
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    borderRadius: 16,
+  },
+  liveBadgeText: {
+    fontFamily: "Outfit_600SemiBold",
+    color: "#15803d",
+    fontSize: 13,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  metaText: {
+    fontFamily: "Outfit_400Regular",
+    color: "#1f2937",
+    fontSize: 14,
+    flex: 1,
+  },
+  noteBox: {
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "rgba(37,99,235,0.08)",
+    padding: 12,
+    borderRadius: 16,
+    marginTop: 6,
+    marginBottom: 12,
+  },
+  noteText: {
+    flex: 1,
+    fontFamily: "Outfit_400Regular",
+    color: "#1d4ed8",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  itemsWrapper: {
+    marginTop: 12,
+  },
+  sectionTitle: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 15,
+    color: "#0f172a",
+    marginBottom: 10,
   },
   itemRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: theme.spacing.xs,
-    borderBottomWidth: 1,
-    borderColor: theme.colors.border,
+    gap: 10,
+    marginBottom: 6,
   },
-  lastItemRow: {
-    borderBottomWidth: 0,
-  },
-  itemName: {
+  itemText: {
     fontFamily: "Outfit_600SemiBold",
-    fontSize: 15,
-    color: theme.colors.text,
+    fontSize: 14,
+    color: "#1f2937",
   },
-  itemMeta: {
+  totalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 14,
+  },
+  totalLabel: {
     fontFamily: "Outfit_400Regular",
-    fontSize: 12,
-    color: theme.colors.muted,
-    marginTop: 2,
+    color: "#64748b",
+    fontSize: 14,
   },
-  itemPrice: {
-    fontFamily: "Outfit_600SemiBold",
-    fontSize: 15,
-    color: theme.colors.primaryDark,
-  },
-  footerRow: {
-    marginTop: theme.spacing.lg,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  totalAmount: {
+  totalValue: {
     fontFamily: "Outfit_700Bold",
+    color: "#111827",
     fontSize: 18,
-    color: theme.colors.text,
-  },
-  actionsSection: {
-    marginTop: theme.spacing.lg,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    flexWrap: "wrap",
-  },
-  pickerContainer: {
-    flex: 1,
-    marginRight: theme.spacing.sm,
   },
   pickerWrapper: {
-    marginTop: theme.spacing.xs,
+    marginTop: 18,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radii.md,
+    borderColor: "#e2e8f0",
     overflow: "hidden",
-    backgroundColor: "#f9fafb",
+    backgroundColor: "#f8fafc",
   },
   picker: {
-    height: 44,
-    color: theme.colors.text,
+    height: 60,
+    width: "100%",
+    color: "#0f172a",
   },
   printButton: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.primary,
-    marginTop: theme.spacing.sm,
-    ...theme.shadow.card,
+    marginTop: 16,
+    backgroundColor: "#2563eb",
+    borderRadius: 16,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   printButtonText: {
-    color: "#fff",
+    color: "#ffffff",
     fontFamily: "Outfit_600SemiBold",
-    fontSize: 15,
+    fontSize: 16,
   },
 });

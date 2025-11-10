@@ -6,8 +6,6 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
-  TouchableOpacity,
-  Image,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -15,6 +13,7 @@ import { Order } from "@/utils/types";
 import OrderCard from "../components/OrderCard";
 import Sidebar from "../components/Sidebar";
 import { theme } from "@/constants/theme";
+import PageHeader from "../components/PageHeader";
 
 export default function OrderHistoryScreen() {
   const [historyOrders, setHistoryOrders] = useState<Order[]>([]);
@@ -27,7 +26,7 @@ export default function OrderHistoryScreen() {
       try {
         const token = await AsyncStorage.getItem("token");
 
-        const res = await fetch("http://192.168.0.91:3000/api/orders", {
+        const res = await fetch("https://www.gbcanteen.com/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -68,34 +67,16 @@ export default function OrderHistoryScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <View style={styles.topWrapper}>
-          <View style={styles.brandingGroup}>
-            <Image
-              source={require("../../assets/images/small-logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <View style={styles.brandTextGroup}>
-              <Text style={styles.headerTitle}>Order History</Text>
-              <Text style={styles.headerSubtitle}>
-                Archived orders older than four hours.
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            onPress={() => setSidebarVisible(true)}
-            style={styles.hamburgerWrapper}
-          >
-            <Text style={styles.hamburger}>☰</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <PageHeader
+        title="Order History"
+        subtitle="Review completed and archived tickets"
+        onMenuPress={() => setSidebarVisible(true)}
+      />
 
       <View style={styles.infoBanner}>
         <Text style={styles.infoText}>
-          Analyse completed orders to identify peak times, repeat customers,
-          and opportunities for tailored service.
+          Analyse completed orders to identify peak times, repeat customers, and
+          opportunities for tailored service.
         </Text>
       </View>
 
@@ -103,7 +84,9 @@ export default function OrderHistoryScreen() {
         data={historyOrders}
         keyExtractor={(item) => item.id}
         contentContainerStyle={
-          historyOrders.length === 0 ? styles.emptyContainer : styles.listContent
+          historyOrders.length === 0
+            ? styles.emptyContainer
+            : styles.listContent
         }
         ListEmptyComponent={
           <View style={styles.emptyCard}>
@@ -115,11 +98,7 @@ export default function OrderHistoryScreen() {
           </View>
         }
         renderItem={({ item }) => (
-          <OrderCard
-            item={item}
-            liveOrders={[]}
-            updateOrderStatus={() => {}}
-          />
+          <OrderCard item={item} liveOrders={[]} updateOrderStatus={() => {}} />
         )}
       />
 
@@ -142,6 +121,7 @@ export default function OrderHistoryScreen() {
           setSidebarVisible(false);
         }}
         pusherStatus={""}
+        restaurantName=""
       />
     </View>
   );

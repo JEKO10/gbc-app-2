@@ -13,6 +13,9 @@ import {
   Image,
   Modal,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { BlurView } from "expo-blur";
+import { Ionicons } from "@expo/vector-icons";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jwtDecode, JwtPayload } from "jwt-decode";
@@ -24,7 +27,6 @@ import OrderCard from "../components/OrderCard";
 import { setupPusher } from "@/utils/pusher";
 import { Order } from "@/utils/types";
 import { statusOrder } from "@/constants/statusOrder";
-import { theme } from "@/constants/theme";
 import Sidebar from "../components/Sidebar";
 
 interface DecodedToken extends JwtPayload {
@@ -39,12 +41,12 @@ const DashboardScreen = () => {
   const [activeTab, setActiveTab] = useState("Pending");
   const [soundObj, setSoundObj] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  // const [sdkVersion, setSdkVersion] = useState<"v1" | "v2">("v2");
   const [restaurantName, setRestaurantName] = useState("");
   const [restaurantId, setRestaurantId] = useState("");
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [pusherState, setPusherState] = useState("Initializing...");
   const [notificationId, setNotificationId] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   const router = useRouter();
 
@@ -88,6 +90,7 @@ const DashboardScreen = () => {
 
         setRestaurantName(decoded.name);
         setRestaurantId(decoded.restaurantId);
+        setAuthToken(token);
 
         await fetchOrders(token);
       } catch {
@@ -103,7 +106,7 @@ const DashboardScreen = () => {
   }, [router]);
 
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!restaurantId || !authToken) return;
 
     const initPusher = async () => {
       await setupPusher(
@@ -112,20 +115,73 @@ const DashboardScreen = () => {
         setLiveOrders,
         setSoundObj,
         setIsPlaying,
-        // sdkVersion,
         setPusherState,
-        setNotificationId
+        setNotificationId,
+        authToken
       );
     };
 
     initPusher();
-  }, [restaurantId]);
+  }, [restaurantId, restaurantName]);
+
+  const statusCounts = useMemo(() => {
+    return liveOrders.reduce((acc, order) => {
+      const currentStatus = order.status || "Unknown";
+      const key =
+        currentStatus.charAt(0).toUpperCase() +
+        currentStatus.slice(1).toLowerCase();
+
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [liveOrders]);
+
+  console.log(pusherState);
+
+  const connectionPalette = useMemo(() => {
+    const normalized = pusherState.toLowerCase();
+
+    if (normalized.includes("connect") && normalized.includes("ed")) {
+      return {
+        background: "rgba(34,197,94,0.18)",
+        text: "#16a34a",
+        dot: "#22c55e",
+        label: "Connected",
+      };
+    }
+
+    if (normalized.includes("connect")) {
+      return {
+        background: "rgba(250,204,21,0.18)",
+        text: "#b45309",
+        dot: "#fbbf24",
+        label: "Connecting",
+      };
+    }
+
+    if (normalized.includes("error")) {
+      return {
+        background: "rgba(248,113,113,0.18)",
+        text: "#dc2626",
+        dot: "#ef4444",
+        label: "Connection Error",
+      };
+    }
+
+    return {
+      background: "rgba(148,163,184,0.22)",
+      text: "#334155",
+      dot: "#94a3b8",
+      label: pusherState,
+    };
+  }, [pusherState]);
 
   const filterOrdersByStatus = useCallback(
-    (status: string): void => {
+    (targetStatus: string): void => {
       const filtered = liveOrders.filter(
         (order) =>
-          order.status && order.status.toLowerCase() === status.toLowerCase()
+          order.status &&
+          order.status.toLowerCase() === targetStatus.toLowerCase()
       );
       setFilteredOrders(filtered);
     },
@@ -141,12 +197,9 @@ const DashboardScreen = () => {
       const now = Date.now();
       setLiveOrders((currentLive) => {
         const updated: Order[] = [];
-        const expired: Order[] = [];
         for (const order of currentLive) {
           const createdTime = new Date(order.createdAt).getTime();
-          if (now - createdTime > 4 * 60 * 60 * 1000) {
-            expired.push(order);
-          } else {
+          if (now - createdTime <= 4 * 60 * 60 * 1000) {
             updated.push(order);
           }
         }
@@ -160,7 +213,7 @@ const DashboardScreen = () => {
 
   const fetchOrders = async (token: string) => {
     try {
-      const res = await fetch("http://192.168.0.91:3000/api/orders", {
+      const res = await fetch("https://www.gbcanteen.com/api/orders", {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -183,10 +236,8 @@ const DashboardScreen = () => {
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const token = await AsyncStorage.getItem("token");
-      if (!token) throw new Error("No token found");
-
       const res = await fetch(
-        `http://192.168.0.91:3000/api/orders/${orderId}`,
+        `https://www.gbcanteen.com/api/orders/${orderId}`,
         {
           method: "PATCH",
           headers: {
@@ -215,575 +266,626 @@ const DashboardScreen = () => {
     router.replace("/login");
   };
 
-  const statusCounts: { [key: string]: number } = liveOrders.reduce(
-    (acc, order) => {
-      const status = order.status || "Unknown";
-      const key =
-        status.charAt(0).toUpperCase() + status.slice(1).toLowerCase();
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    },
-    {} as { [key: string]: number }
-  );
-
-  const metrics = useMemo(
-    () => [
-      {
-        label: "Live Orders",
-        value: liveOrders.length,
-        color: theme.colors.primary,
-      },
-      {
-        label: "Pending",
-        value: statusCounts["Pending"] || 0,
-        color: theme.colors.warning,
-      },
-      {
-        label: "Preparing",
-        value: statusCounts["Preparing"] || 0,
-        color: theme.colors.primaryDark,
-      },
-      {
-        label: "Ready",
-        value: statusCounts["Ready"] || 0,
-        color: theme.colors.accent,
-      },
-    ],
-    [
-      liveOrders.length,
-      statusCounts["Pending"] || 0,
-      statusCounts["Preparing"] || 0,
-      statusCounts["Ready"] || 0,
-    ]
-  );
-
   if (loading) {
     return (
-      <View style={styles.centered}>
-        <ActivityIndicator size="large" />
-      </View>
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingState}>
+          <ActivityIndicator size="large" color="#2563eb" />
+          <Text style={styles.loadingText}>Loading dashboard…</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.topBar}>
-        <View style={styles.topWrapper}>
-          <View style={styles.brandingGroup}>
-            <Image
-              source={require("../../assets/images/small-logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <View style={styles.brandTextGroup}>
-              <Text style={styles.headerText}>Live Orders</Text>
-              <Text style={styles.restaurantName}>{restaurantName}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.container}>
+        <View style={styles.heroCard}>
+          <View style={styles.heroTopRow}>
+            <View style={styles.logoWrap}>
+              <Image
+                source={require("../../assets/images/small-logo.png")}
+                style={styles.logo}
+                resizeMode="contain"
+              />
+            </View>
+            <TouchableOpacity
+              onPress={() => setSidebarVisible(true)}
+              style={styles.iconButton}
+            >
+              <Ionicons name="menu" size={22} color="#e2e8f0" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.heroSubtitle}>Live order operations</Text>
+          <Text style={styles.heroTitle}>
+            {restaurantName || "GBC Canteen"}
+          </Text>
+
+          <View style={styles.heroMetaRow}>
+            <View style={styles.metaPill}>
+              <Ionicons name="flash-outline" size={16} color="#facc15" />
+              <Text style={styles.metaPillText}>
+                {liveOrders.length} active{" "}
+                {liveOrders.length === 1 ? "order" : "orders"}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.statusChip,
+                { backgroundColor: connectionPalette.background },
+              ]}
+            >
+              <View
+                style={[
+                  styles.statusDot,
+                  { backgroundColor: connectionPalette.dot },
+                ]}
+              />
+              <Text
+                style={[styles.statusText, { color: connectionPalette.text }]}
+              >
+                {connectionPalette.label}
+              </Text>
             </View>
           </View>
 
-          <TouchableOpacity
-            onPress={() => setSidebarVisible(true)}
-            style={styles.hamburgerWrapper}
-          >
-            <Text style={styles.hamburger}>☰</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.statusBanner}>
-          <Text style={styles.statusLabel}>Notification Status</Text>
-          <Text
-            style={[
-              styles.statusValue,
-              pusherState === "CONNECTED"
-                ? styles.statusConnected
-                : pusherState === "CONNECTING"
-                ? styles.statusConnecting
-                : styles.statusOffline,
-            ]}
-          >
-            {pusherState}
+          <Text style={styles.heroHint}>
+            Keep this screen open to receive instant notifications and audio
+            alerts.
           </Text>
         </View>
-      </View>
 
-      <View style={styles.metricsRow}>
-        {metrics.map((metric) => (
-          <View key={metric.label} style={styles.metricCard}>
-            <Text style={styles.metricLabel}>{metric.label}</Text>
-            <Text style={[styles.metricValue, { color: metric.color }]}>
-              {metric.value}
-            </Text>
-          </View>
-        ))}
-      </View>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabList}
-      >
-        {statusOrder.map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            style={[styles.tab, activeTab === tab && styles.activeTab]}
-          >
-            <Text
-              style={[styles.tabText, activeTab === tab && styles.activeTabText]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabList}
+        >
+          {statusOrder.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              onPress={() => setActiveTab(tab)}
+              style={[styles.tab, activeTab === tab && styles.activeTab]}
             >
-              {tab}
-            </Text>
-            {(statusCounts[tab] || 0) > 0 && (
-              <View
-                style={[styles.badge, activeTab === tab && styles.activeBadge]}
-              >
+              <View style={styles.tabContent}>
                 <Text
                   style={[
-                    styles.badgeText,
-                    activeTab === tab && styles.activeBadgeText,
+                    styles.tabText,
+                    activeTab === tab && styles.activeTabText,
                   ]}
                 >
-                  {statusCounts[tab]}
+                  {tab}
                 </Text>
+                {(statusCounts[tab] || 0) > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{statusCounts[tab]}</Text>
+                  </View>
+                )}
               </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
-      <FlatList
-        initialNumToRender={5}
-        maxToRenderPerBatch={10}
-        windowSize={7}
-        data={filteredOrders}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle=
-          {filteredOrders.length === 0
-            ? styles.emptyContainer
-            : styles.listContent}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyTitle}>No {activeTab} orders</Text>
-            <Text style={styles.emptySubtitle}>
-              Orders that match this status will appear here instantly.
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <OrderCard
-            item={item}
-            liveOrders={liveOrders}
-            updateOrderStatus={updateOrderStatus}
-          />
-        )}
-      />
-      <Sidebar
-        visible={sidebarVisible}
-        onClose={() => setSidebarVisible(false)}
-        onLiveOrders={() => {
-          setActiveTab("Pending");
-          setSidebarVisible(false);
-        }}
-        onHistory={() => {
-          router.push("/history");
-          setSidebarVisible(false);
-        }}
-        onSummary={() => {
-          router.push("/summary");
-          setSidebarVisible(false);
-        }}
-        onLogout={() => {
-          logout();
-          setSidebarVisible(false);
-        }}
-        pusherStatus={pusherState}
-      />
-
-      {soundObj && isPlaying && (
-        <Modal animationType="fade" transparent={true} visible={true}>
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContent}>
-              <Text style={styles.modalSubtitle}>
-                New order received! Do you want to accept or reject it?
+        <FlatList
+          data={filteredOrders}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.listContent}
+          ListEmptyComponent={() => (
+            <View style={styles.emptyState}>
+              <Ionicons name="cloud-outline" size={40} color="#94a3b8" />
+              <Text style={styles.emptyTitle}>No {activeTab} orders</Text>
+              <Text style={styles.emptySubtitle}>
+                Orders that match this status will appear here instantly.
               </Text>
+            </View>
+          )}
+          renderItem={({ item }) => (
+            <OrderCard
+              item={item}
+              liveOrders={liveOrders}
+              updateOrderStatus={updateOrderStatus}
+            />
+          )}
+        />
 
-              <View style={styles.modalActions}>
-                <TouchableOpacity
-                  style={[styles.stopButton, { backgroundColor: "#10b981" }]}
-                  onPress={() => {
-                    Alert.alert(
-                      "Confirm Acceptance",
-                      "Are you sure you want to accept this order?",
-                      [
-                        {
-                          text: "Cancel",
-                          style: "cancel",
-                        },
-                        {
-                          text: "Yes, Accept",
-                          style: "default",
-                          onPress: async () => {
-                            if (soundObj) {
-                              try {
-                                await soundObj.stopAsync();
-                                await soundObj.unloadAsync();
-                              } catch (err) {
-                                console.error("🔊 Error stopping sound:", err);
-                              }
-                              setSoundObj(null);
-                              setIsPlaying(false);
-                            }
+        <Sidebar
+          visible={sidebarVisible}
+          onClose={() => setSidebarVisible(false)}
+          onLiveOrders={() => {
+            setActiveTab("Pending");
+            setSidebarVisible(false);
+          }}
+          onHistory={() => {
+            router.push("/history");
+            setSidebarVisible(false);
+          }}
+          onSummary={() => {
+            router.push("/summary");
+            setSidebarVisible(false);
+          }}
+          onLogout={() => {
+            logout();
+            setSidebarVisible(false);
+          }}
+          pusherStatus={pusherState}
+          restaurantName={restaurantName}
+        />
 
-                            if (notificationId) {
-                              await Notifications.dismissNotificationAsync(
-                                notificationId
-                              );
-                              setNotificationId(null);
-                            }
+        {soundObj && isPlaying && (
+          <Modal animationType="fade" transparent visible>
+            <View style={styles.modalOverlay}>
+              <BlurView
+                intensity={70}
+                tint="dark"
+                style={styles.blurBackdrop}
+              />
+              <View style={styles.modalContent}>
+                <View style={styles.modalIconWrap}>
+                  <Ionicons
+                    name="notifications-outline"
+                    size={26}
+                    color="#f97316"
+                  />
+                </View>
+                <Text style={styles.modalTitle}>New order received</Text>
+                <Text style={styles.modalSubtitle}>
+                  A customer is waiting—choose an action to keep the kitchen
+                  moving.
+                </Text>
 
-                            const newestPending = [...liveOrders]
-                              .filter((order) => order.status === "Pending")
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.createdAt).getTime() -
-                                  new Date(a.createdAt).getTime()
-                              )[0];
-
-                            if (newestPending) {
-                              await updateOrderStatus(
-                                newestPending.id,
-                                "Preparing"
-                              );
-                              Platform.OS === "android"
-                                ? ToastAndroid.show(
-                                    "Order accepted",
-                                    ToastAndroid.SHORT
-                                  )
-                                : Alert.alert(
-                                    "Accepted",
-                                    "Order moved to Preparing (Accepted)"
-                                  );
-                            } else {
-                              Alert.alert(
-                                "No Pending Orders",
-                                "Nothing to accept."
-                              );
-                            }
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.acceptButton]}
+                    onPress={() => {
+                      Alert.alert(
+                        "Confirm Acceptance",
+                        "Are you sure you want to accept this order?",
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
                           },
-                        },
-                      ]
-                    );
-                  }}
-                >
-                  <Text style={styles.stopButtonText}>✅ Accept</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.stopButton, { backgroundColor: "#ef4444" }]}
-                  onPress={() => {
-                    Alert.alert(
-                      "Confirm Rejection",
-                      "Are you sure you want to reject this order?",
-                      [
-                        {
-                          text: "Cancel",
-                          style: "cancel",
-                        },
-                        {
-                          text: "Yes, Reject",
-                          style: "destructive",
-                          onPress: async () => {
-                            if (soundObj) {
-                              try {
-                                await soundObj.stopAsync();
-                                await soundObj.unloadAsync();
-                              } catch (err) {
-                                console.error("🔊 Error stopping sound:", err);
-                              }
-                              setSoundObj(null);
-                              setIsPlaying(false);
-                            }
-
-                            if (notificationId) {
-                              await Notifications.dismissNotificationAsync(
-                                notificationId
-                              );
-                              setNotificationId(null);
-                            }
-
-                            const newestPending = [...liveOrders]
-                              .filter((order) => order.status === "Pending")
-                              .sort(
-                                (a, b) =>
-                                  new Date(b.createdAt).getTime() -
-                                  new Date(a.createdAt).getTime()
-                              )[0];
-
-                            if (newestPending) {
-                              await updateOrderStatus(
-                                newestPending.id,
-                                "Rejected"
-                              );
-                              Platform.OS === "android"
-                                ? ToastAndroid.show(
-                                    "Order rejected",
-                                    ToastAndroid.SHORT
-                                  )
-                                : Alert.alert(
-                                    "Rejected",
-                                    "Order marked as Rejected"
+                          {
+                            text: "Yes, Accept",
+                            style: "default",
+                            onPress: async () => {
+                              if (soundObj) {
+                                try {
+                                  await soundObj.stopAsync();
+                                  await soundObj.unloadAsync();
+                                } catch (err) {
+                                  console.error(
+                                    "🔊 Error stopping sound:",
+                                    err
                                   );
-                            } else {
-                              Alert.alert(
-                                "No Pending Orders",
-                                "Nothing to reject."
-                              );
-                            }
+                                }
+                                setSoundObj(null);
+                                setIsPlaying(false);
+                              }
+
+                              if (notificationId) {
+                                await Notifications.dismissNotificationAsync(
+                                  notificationId
+                                );
+                                setNotificationId(null);
+                              }
+
+                              const newestPending = [...liveOrders]
+                                .filter((order) => order.status === "Pending")
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.createdAt).getTime() -
+                                    new Date(a.createdAt).getTime()
+                                )[0];
+
+                              if (newestPending) {
+                                await updateOrderStatus(
+                                  newestPending.id,
+                                  "Preparing"
+                                );
+                                Platform.OS === "android"
+                                  ? ToastAndroid.show(
+                                      "Order accepted",
+                                      ToastAndroid.SHORT
+                                    )
+                                  : Alert.alert(
+                                      "Accepted",
+                                      "Order moved to Preparing (Accepted)"
+                                    );
+                              } else {
+                                Alert.alert(
+                                  "No Pending Orders",
+                                  "Nothing to accept."
+                                );
+                              }
+                            },
                           },
-                        },
-                      ]
-                    );
-                  }}
-                >
-                  <Text style={styles.stopButtonText}>❌ Reject</Text>
-                </TouchableOpacity>
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color="#ffffff"
+                    />
+                    <Text style={styles.modalButtonText}>Accept Order</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.rejectButton]}
+                    onPress={() => {
+                      Alert.alert(
+                        "Confirm Rejection",
+                        "Are you sure you want to reject this order?",
+                        [
+                          {
+                            text: "Cancel",
+                            style: "cancel",
+                          },
+                          {
+                            text: "Yes, Reject",
+                            style: "destructive",
+                            onPress: async () => {
+                              if (soundObj) {
+                                try {
+                                  await soundObj.stopAsync();
+                                  await soundObj.unloadAsync();
+                                } catch (err) {
+                                  console.error(
+                                    "🔊 Error stopping sound:",
+                                    err
+                                  );
+                                }
+                                setSoundObj(null);
+                                setIsPlaying(false);
+                              }
+
+                              if (notificationId) {
+                                await Notifications.dismissNotificationAsync(
+                                  notificationId
+                                );
+                                setNotificationId(null);
+                              }
+
+                              const newestPending = [...liveOrders]
+                                .filter((order) => order.status === "Pending")
+                                .sort(
+                                  (a, b) =>
+                                    new Date(b.createdAt).getTime() -
+                                    new Date(a.createdAt).getTime()
+                                )[0];
+
+                              if (newestPending) {
+                                await updateOrderStatus(
+                                  newestPending.id,
+                                  "Rejected"
+                                );
+                                Platform.OS === "android"
+                                  ? ToastAndroid.show(
+                                      "Order rejected",
+                                      ToastAndroid.SHORT
+                                    )
+                                  : Alert.alert(
+                                      "Rejected",
+                                      "Order marked as Rejected"
+                                    );
+                              } else {
+                                Alert.alert(
+                                  "No Pending Orders",
+                                  "Nothing to reject."
+                                );
+                              }
+                            },
+                          },
+                        ]
+                      );
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#ffffff" />
+                    <Text style={styles.modalButtonText}>Reject Order</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
-          </View>
-        </Modal>
-      )}
-    </View>
+          </Modal>
+        )}
+      </View>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: "#0f172a",
+  },
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: "#f4f6fb",
+    paddingHorizontal: 20,
+    paddingBottom: 24,
   },
-  centered: {
+  loadingState: {
     flex: 1,
-    justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.colors.background,
+    justifyContent: "center",
+    backgroundColor: "#f4f6fb",
   },
-  topBar: {
-    backgroundColor: theme.colors.surface,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderColor: theme.colors.border,
-    ...theme.shadow.card,
+  loadingText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: "#475569",
+    fontFamily: "Outfit_400Regular",
   },
-  topWrapper: {
+  heroCard: {
+    backgroundColor: "#111827",
+    borderRadius: 24,
+    padding: 20,
+    paddingBottom: 24,
+    marginTop: 12,
+    marginBottom: 18,
+    overflow: "hidden",
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.25,
+    shadowRadius: 20,
+    elevation: 4,
+  },
+  heroTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    marginBottom: 16,
   },
-  brandingGroup: {
-    flexDirection: "row",
+  logoWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: 18,
+    backgroundColor: "rgba(15,23,42,0.45)",
     alignItems: "center",
-  },
-  brandTextGroup: {
-    marginLeft: theme.spacing.md,
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.3)",
   },
   logo: {
-    width: 64,
-    height: 64,
+    width: 60,
+    height: 60,
   },
-  headerText: {
-    fontSize: 24,
-    fontFamily: "Outfit_700Bold",
-    color: theme.colors.text,
-  },
-  restaurantName: {
-    fontSize: 15,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_400Regular",
-    marginTop: 4,
-  },
-  hamburgerWrapper: {
-    padding: theme.spacing.sm,
-    borderRadius: theme.radii.md,
-    backgroundColor: "#eef2ff",
-  },
-  hamburger: {
-    fontSize: 24,
-    color: theme.colors.primaryDark,
-  },
-  statusBanner: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radii.sm,
-    backgroundColor: "#eef2ff",
-  },
-  statusLabel: {
-    fontSize: 14,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_600SemiBold",
-  },
-  statusValue: {
-    fontSize: 14,
-    fontFamily: "Outfit_700Bold",
-    textTransform: "uppercase",
-  },
-  statusConnected: {
-    color: theme.colors.accent,
-  },
-  statusConnecting: {
-    color: theme.colors.warning,
-  },
-  statusOffline: {
-    color: theme.colors.danger,
-  },
-  metricsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.md,
-    marginBottom: theme.spacing.sm,
-  },
-  metricCard: {
-    width: "48%",
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.md,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-    ...theme.shadow.card,
-  },
-  metricLabel: {
-    fontSize: 13,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
-  },
-  metricValue: {
-    fontSize: 28,
-    fontFamily: "Outfit_700Bold",
-    marginTop: 4,
-  },
-  tabList: {
-    flexDirection: "row",
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-  },
-  tab: {
-    flexDirection: "row",
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "rgba(148,163,184,0.24)",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: theme.radii.lg,
-    backgroundColor: "#e5e7ff",
-    marginRight: theme.spacing.sm,
+  },
+  heroSubtitle: {
+    fontSize: 15,
+    color: "#94a3b8",
+    fontFamily: "Outfit_400Regular",
+    marginBottom: 4,
+  },
+  heroTitle: {
+    fontSize: 26,
+    color: "#f8fafc",
+    fontFamily: "Outfit_700Bold",
+  },
+  heroMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 18,
+    gap: 12,
+  },
+  metaPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(250,204,21,0.15)",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 30,
+    gap: 8,
+  },
+  metaPillText: {
+    color: "#fde68a",
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+  },
+  statusChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 30,
+    gap: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  statusText: {
+    fontFamily: "Outfit_600SemiBold",
+    fontSize: 14,
+  },
+  heroHint: {
+    marginTop: 18,
+    color: "#cbd5f5",
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: "Outfit_400Regular",
+  },
+  metricScroll: {
+    marginBottom: 8,
+  },
+  metricList: {
+    paddingRight: 8,
+    gap: 16,
+  },
+  metricCard: {
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    minWidth: 130,
+    shadowColor: "#1f2937",
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 2,
+  },
+  metricAccent: {
+    width: 34,
+    height: 4,
+    borderRadius: 4,
+    marginBottom: 12,
+  },
+  metricValue: {
+    fontSize: 24,
+    fontFamily: "Outfit_700Bold",
+    color: "#0f172a",
+  },
+  metricLabel: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#475569",
+    fontFamily: "Outfit_400Regular",
+  },
+  tabList: {
+    paddingVertical: 10,
+    gap: 10,
+    marginBottom: 90,
+  },
+  tab: {
+    height: 45,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 30,
+    backgroundColor: "#e2e8f0",
   },
   activeTab: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: "#2563eb",
+    shadowColor: "#2563eb",
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+  },
+  tabContent: {
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
   },
   tabText: {
     fontSize: 14,
     fontFamily: "Outfit_600SemiBold",
-    color: theme.colors.primaryDark,
+    color: "#475569",
   },
   activeTabText: {
-    color: "#fff",
+    color: "#ffffff",
   },
   badge: {
-    marginLeft: theme.spacing.xs,
-    paddingHorizontal: 8,
+    position: "absolute",
+    top: -10,
+    right: -18,
+    backgroundColor: "#f97316",
+    borderRadius: 12,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 999,
-    backgroundColor: "rgba(37, 99, 235, 0.15)",
-  },
-  activeBadge: {
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    minWidth: 22,
+    alignItems: "center",
+    justifyContent: "center",
   },
   badgeText: {
+    color: "#fff",
     fontSize: 12,
     fontFamily: "Outfit_600SemiBold",
-    color: theme.colors.primaryDark,
-  },
-  activeBadgeText: {
-    color: "#fff",
   },
   listContent: {
-    flexGrow: 1,
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.xl * 1.5,
-    paddingTop: theme.spacing.sm,
-  },
-  emptyContainer: {
-    flexGrow: 1,
-    justifyContent: "center",
-    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: 160,
+    paddingTop: 8,
   },
   emptyState: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.md,
-    padding: theme.spacing.lg,
+    marginTop: 60,
     alignItems: "center",
-    ...theme.shadow.card,
+    gap: 12,
   },
   emptyTitle: {
     fontSize: 18,
-    fontFamily: "Outfit_700Bold",
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
+    fontFamily: "Outfit_600SemiBold",
+    color: "#1f2937",
   },
   emptySubtitle: {
     fontSize: 14,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_400Regular",
+    color: "#64748b",
     textAlign: "center",
-    lineHeight: 20,
-  },
-  modalActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    width: "100%",
-    marginTop: theme.spacing.sm,
+    paddingHorizontal: 40,
+    fontFamily: "Outfit_400Regular",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+  },
+  blurBackdrop: {
+    ...StyleSheet.absoluteFillObject,
   },
   modalContent: {
-    backgroundColor: "white",
-    borderRadius: theme.radii.lg,
-    padding: 30,
-    alignItems: "center",
-    width: "90%",
+    width: "86%",
     maxWidth: 420,
+    backgroundColor: "#ffffff",
+    borderRadius: 24,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.16,
+    shadowRadius: 24,
+    elevation: 6,
+  },
+  modalIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: "rgba(249, 115, 22, 0.1)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontFamily: "Outfit_700Bold",
+    color: "#111827",
+    marginBottom: 8,
+    textAlign: "center",
   },
   modalSubtitle: {
-    fontSize: 16,
-    color: theme.colors.muted,
-    fontFamily: "Outfit_400Regular",
+    fontSize: 14,
+    color: "#475569",
     textAlign: "center",
-    marginBottom: 18,
+    lineHeight: 20,
+    marginBottom: 24,
+    fontFamily: "Outfit_400Regular",
   },
-  stopButton: {
+  modalActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalButton: {
     flex: 1,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.md,
+    flexDirection: "row",
     alignItems: "center",
-    marginHorizontal: theme.spacing.xs,
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 14,
   },
-  stopButtonText: {
-    fontSize: 16,
-    color: "#fff",
+  acceptButton: {
+    backgroundColor: "#16a34a",
+  },
+  rejectButton: {
+    backgroundColor: "#dc2626",
+  },
+  modalButtonText: {
+    color: "#ffffff",
+    fontSize: 15,
     fontFamily: "Outfit_600SemiBold",
   },
 });

@@ -17,6 +17,7 @@ interface SidebarProps {
   onLogout: () => void;
   onSummary: () => void;
   pusherStatus: string;
+  restaurantName: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({
@@ -27,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   onSummary,
   pusherStatus,
+  restaurantName,
 }) => {
   if (!visible) return null;
 
@@ -46,9 +48,7 @@ const Sidebar: React.FC<SidebarProps> = ({
           <View style={styles.headerRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.heading}>Control Center</Text>
-              <Text style={styles.subheading}>
-                Navigate across your restaurant tools.
-              </Text>
+              <Text style={styles.subheading}>{restaurantName}</Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
               <Text style={styles.closeText}>✕</Text>
@@ -80,7 +80,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
           <View style={styles.statusCard}>
             <View style={styles.statusRow}>
-              <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+              <View
+                style={[styles.statusDot, { backgroundColor: statusColor }]}
+              />
               <Text style={styles.statusLabel}>Notification channel</Text>
             </View>
             <Text style={styles.statusValue}>

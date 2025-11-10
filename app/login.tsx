@@ -6,32 +6,35 @@ import {
   StyleSheet,
   Alert,
   TouchableOpacity,
-  SafeAreaView,
+  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import { theme } from "@/constants/theme";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 export default function LoginScreen() {
   const [name, setName] = useState("");
   const [password, setPassword] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [secureEntry, setSecureEntry] = useState(true);
   const router = useRouter();
 
   const handleLogin = async () => {
     if (!name.trim() || !password.trim()) {
-      setErrorMessage("Please enter your restaurant name and password.");
+      Alert.alert(
+        "Missing details",
+        "Enter both restaurant name and password."
+      );
       return;
     }
 
     try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
-      const res = await fetch("http://192.168.0.91:3000/api/login", {
+      setLoading(true);
+      const res = await fetch("https://www.gbcanteen.com/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name, password }),
@@ -43,16 +46,15 @@ export default function LoginScreen() {
         await AsyncStorage.setItem("token", data.token);
         router.replace("/dashboard");
       } else {
-        const message = data.error || "Unable to sign in. Please try again.";
-        setErrorMessage(message);
-        Alert.alert("Login failed", message);
+        Alert.alert("Login failed", data.error || "Unknown error");
       }
-    } catch (e: any) {
-      const message = e.message || "Something went wrong. Please try again.";
-      setErrorMessage(message);
-      Alert.alert("Login failed", message);
+    } catch (e: unknown) {
+      Alert.alert(
+        "Login failed",
+        e instanceof Error ? e.message : "Unexpected error occurred."
+      );
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
 
@@ -60,65 +62,116 @@ export default function LoginScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 24 : 0}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContainer}
-          keyboardShouldPersistTap="handled"
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          automaticallyAdjustKeyboardInsets
         >
-          <View style={styles.branding}>
-            <Text style={styles.welcome}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Sign in to manage orders, keep customers updated, and stay on
-              top of service.
+          <View style={styles.heroBadge}>
+            <Text style={styles.heroTitle}>GBC Canteen</Text>
+            <Text style={styles.heroSubtitle}>Operator Access</Text>
+            <Text style={styles.heroCaption}>
+              Sign in to view live orders, manage fulfilment, and monitor
+              performance metrics in real time.
             </Text>
           </View>
 
           <View style={styles.formCard}>
-            <Text style={styles.cardTitle}>Restaurant Portal</Text>
-            <Text style={styles.cardSubtitle}>
-              Enter your credentials to access the dashboard.
-            </Text>
+            <View style={styles.formHeader}>
+              <Text style={styles.formTitle}>Welcome back</Text>
+              <Text style={styles.formDescription}>
+                Use the restaurant credentials provided by the GBC onboarding
+                team.
+              </Text>
+            </View>
 
             <View style={styles.inputGroup}>
-              <Text style={styles.inputLabel}>Restaurant Name</Text>
-              <TextInput
-                placeholder="e.g. Green Bowl Cafe"
-                placeholderTextColor={theme.colors.muted}
-                style={styles.input}
-                value={name}
-                onChangeText={setName}
-                autoCapitalize="words"
-                returnKeyType="next"
-              />
+              <Text style={styles.inputLabel}>Restaurant name</Text>
+              <View style={styles.inputFieldWrapper}>
+                <Ionicons name="storefront-outline" size={18} color="#64748b" />
+                <TextInput
+                  value={name}
+                  onChangeText={setName}
+                  placeholder="Name of your GBC restaurant"
+                  placeholderTextColor="#94a3b8"
+                  style={styles.inputField}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+              </View>
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Password</Text>
-              <TextInput
-                placeholder="Enter your password"
-                placeholderTextColor={theme.colors.muted}
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry
-                returnKeyType="done"
-              />
+              <View style={styles.inputFieldWrapper}>
+                <Ionicons
+                  name="lock-closed-outline"
+                  size={18}
+                  color="#64748b"
+                />
+                <TextInput
+                  value={password}
+                  onChangeText={setPassword}
+                  placeholder="Enter secure password"
+                  placeholderTextColor="#94a3b8"
+                  style={styles.inputField}
+                  secureTextEntry={secureEntry}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!loading}
+                />
+                <TouchableOpacity
+                  onPress={() => setSecureEntry((prev) => !prev)}
+                  style={styles.eyeButton}
+                >
+                  <Ionicons
+                    name={secureEntry ? "eye-outline" : "eye-off-outline"}
+                    size={18}
+                    color="#475569"
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
 
-            {errorMessage && (
-              <Text style={styles.errorText}>{errorMessage}</Text>
-            )}
-
             <TouchableOpacity
-              style={[styles.button, isSubmitting && styles.buttonDisabled]}
+              style={[
+                styles.primaryButton,
+                loading && styles.primaryButtonDisabled,
+              ]}
               onPress={handleLogin}
-              disabled={isSubmitting}
+              activeOpacity={0.9}
+              disabled={loading}
             >
-              <Text style={styles.buttonText}>
-                {isSubmitting ? "Signing In..." : "Sign In"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.primaryButtonText}>Sign in</Text>
+              )}
             </TouchableOpacity>
+
+            <View style={styles.helperRow}>
+              <Ionicons name="shield-checkmark" size={16} color="#38bdf8" />
+              <Text style={styles.helperText}>
+                Access restricted to registered restaurant partners.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.supportCard}>
+            <Text style={styles.supportTitle}>Need assistance?</Text>
+            <Text style={styles.supportText}>
+              Email{" "}
+              <Text style={styles.supportHighlight}>support@gbcanteen.com</Text>{" "}
+              or call{" "}
+              <Text style={styles.supportHighlight}>44 20 1234 5678</Text> to
+              reset credentials.
+            </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -129,84 +182,150 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: "#0f172a",
   },
-  scrollContainer: {
+  scrollContent: {
     flexGrow: 1,
-    padding: theme.spacing.lg,
-    justifyContent: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+    backgroundColor: "#0f172a",
+    paddingBottom: 96,
   },
-  branding: {
-    marginBottom: theme.spacing.xl,
+  heroBadge: {
+    backgroundColor: "rgba(148, 163, 184, 0.12)",
+    borderRadius: 28,
+    padding: 24,
+    marginBottom: 28,
+    borderWidth: 1,
+    borderColor: "rgba(148, 163, 184, 0.18)",
   },
-  welcome: {
-    fontSize: 32,
+  heroTitle: {
+    fontSize: 26,
+    color: "#38bdf8",
     fontFamily: "Outfit_700Bold",
-    color: theme.colors.text,
-    marginBottom: theme.spacing.sm,
   },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.muted,
+  heroSubtitle: {
+    marginTop: 8,
+    fontSize: 18,
+    color: "#e2e8f0",
+    fontFamily: "Outfit_600SemiBold",
+  },
+  heroCaption: {
+    marginTop: 12,
+    color: "#cbd5f5",
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: "Outfit_400Regular",
-    lineHeight: 22,
   },
   formCard: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: theme.radii.lg,
-    padding: theme.spacing.lg,
-    ...theme.shadow.card,
+    backgroundColor: "#f8fafc",
+    borderRadius: 28,
+    paddingVertical: 28,
+    paddingHorizontal: 24,
+    shadowColor: "#0f172a",
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 6,
   },
-  cardTitle: {
+  formHeader: {
+    marginBottom: 24,
+    gap: 8,
+  },
+  formTitle: {
     fontSize: 24,
+    color: "#0f172a",
     fontFamily: "Outfit_700Bold",
-    color: theme.colors.text,
   },
-  cardSubtitle: {
-    fontSize: 15,
-    color: theme.colors.muted,
-    marginTop: theme.spacing.xs,
-    marginBottom: theme.spacing.lg,
+  formDescription: {
+    color: "#475569",
+    fontSize: 14,
+    lineHeight: 20,
     fontFamily: "Outfit_400Regular",
   },
   inputGroup: {
-    marginBottom: theme.spacing.md,
+    marginBottom: 18,
   },
   inputLabel: {
-    fontSize: 14,
-    color: theme.colors.muted,
-    marginBottom: theme.spacing.xs,
+    fontSize: 13,
+    color: "#64748b",
+    marginBottom: 6,
     fontFamily: "Outfit_600SemiBold",
+    textTransform: "uppercase",
+    letterSpacing: 1,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radii.sm,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
+  inputFieldWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#e2e8f0",
+    borderRadius: 18,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  inputField: {
+    flex: 1,
+    color: "#0f172a",
     fontSize: 16,
     fontFamily: "Outfit_400Regular",
-    color: theme.colors.text,
-    backgroundColor: "#f9fafb",
   },
-  errorText: {
-    color: theme.colors.danger,
-    fontFamily: "Outfit_600SemiBold",
-    marginBottom: theme.spacing.md,
-    textAlign: "center",
+  eyeButton: {
+    padding: 4,
+    flexShrink: 0,
   },
-  button: {
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.sm + 6,
-    borderRadius: theme.radii.md,
+  primaryButton: {
+    marginTop: 12,
+    backgroundColor: "#2563eb",
+    borderRadius: 18,
+    paddingVertical: 16,
     alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#2563eb",
+    shadowOpacity: 0.35,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  buttonDisabled: {
-    opacity: 0.6,
+  primaryButtonDisabled: {
+    opacity: 0.65,
   },
-  buttonText: {
+  primaryButtonText: {
     color: "#fff",
     fontSize: 17,
+    fontFamily: "Outfit_600SemiBold",
+  },
+  helperRow: {
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  helperText: {
+    flex: 1,
+    color: "#475569",
+    fontSize: 13,
+    fontFamily: "Outfit_400Regular",
+  },
+  supportCard: {
+    marginTop: 28,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: "rgba(148,163,184,0.4)",
+    backgroundColor: "rgba(15,23,42,0.35)",
+    padding: 24,
+  },
+  supportTitle: {
+    color: "#e2e8f0",
+    fontSize: 18,
+    fontFamily: "Outfit_600SemiBold",
+    marginBottom: 8,
+  },
+  supportText: {
+    color: "#cbd5f5",
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: "Outfit_400Regular",
+  },
+  supportHighlight: {
+    color: "#38bdf8",
     fontFamily: "Outfit_600SemiBold",
   },
 });

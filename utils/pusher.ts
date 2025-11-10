@@ -14,7 +14,8 @@ export const setupPusher = async (
   setIsPlaying: SetState<boolean>,
   // sdkVersion: "v1" | "v2",
   setPusherState: SetState<string>,
-  setNotificationId: SetState<string | null>
+  setNotificationId: SetState<string | null>,
+  authToken: string
 ): Promise<void> => {
   const pusher = Pusher.getInstance();
 
@@ -33,11 +34,49 @@ export const setupPusher = async (
     useTLS: true,
     activityTimeout: 30000,
     pongTimeout: 10000,
+    authEndpoint: "https://www.gbcanteen.com/api/pusher/auth",
     onConnectionStateChange: (state) => {
       setPusherState(state);
     },
     onError: () => {
       setPusherState("Error");
+    },
+    onAuthorizer: async (channelName, socketId) => {
+      try {
+        setPusherState("Authorizing...");
+
+        const response = await fetch(
+          "https://www.gbcanteen.com/api/pusher/auth",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({
+              channel_name: channelName,
+              socket_id: socketId,
+              restaurantId,
+              restaurantName,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          const errorMessage = await response.text();
+          throw new Error(
+            `Pusher auth failed (${response.status}): ${errorMessage}`
+          );
+        }
+
+        const authData = await response.json();
+        setPusherState("Authorized");
+        return authData;
+      } catch (error) {
+        console.error("🔒 Pusher authorization failed", error);
+        setPusherState("Auth Error");
+        throw error;
+      }
     },
   });
 
@@ -50,9 +89,25 @@ export const setupPusher = async (
   const channelName = `restaurant-${String(restaurantId)}`;
   console.log("📡 Subscribing to:", channelName);
   await pusher.unsubscribe({ channelName });
+  const privateChannelName = `private-restaurant-${String(restaurantId)}`;
+  const legacyChannelName = `restaurant-${String(restaurantId)}`;
+
+  console.log("📡 Subscribing to:", privateChannelName);
+
+  try {
+    await pusher.unsubscribe({ channelName: legacyChannelName });
+  } catch (error) {
+    console.log("ℹ️ No legacy channel to unsubscribe", error);
+  }
+
+  try {
+    await pusher.unsubscribe({ channelName: privateChannelName });
+  } catch (error) {
+    console.log("ℹ️ No existing private channel subscription", error);
+  }
 
   await pusher.subscribe({
-    channelName,
+    channelName: privateChannelName,
     onEvent: async (event: PusherEvent) => {
       if (event.eventName === "new-order") {
         const data: Order = JSON.parse(event.data);
@@ -99,7 +154,7 @@ export const setupPusher = async (
             await sound.unloadAsync();
             setSoundObj(null);
             setIsPlaying(false);
-          }, 10000);
+          }, 50000);
         } catch (err) {
           console.error("🔊 Error playing notification sound", err);
         }

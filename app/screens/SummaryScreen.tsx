@@ -13,6 +13,7 @@ import { Order } from "@/utils/types";
 import Sidebar from "../components/Sidebar";
 import { useRouter } from "expo-router";
 import { theme } from "@/constants/theme";
+import PageHeader from "../components/PageHeader";
 
 interface DailySummary {
   date: string;
@@ -39,7 +40,7 @@ export default function AllSummaryScreen() {
       if (!token) return;
 
       try {
-        const res = await fetch("http://192.168.0.91:3000/api/orders", {
+        const res = await fetch("https://www.gbcanteen.com/api/orders", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -86,30 +87,11 @@ export default function AllSummaryScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <View style={styles.topWrapper}>
-          <View style={styles.brandingGroup}>
-            <Image
-              source={require("../../assets/images/small-logo.png")}
-              style={styles.logo}
-              resizeMode="contain"
-            />
-            <View style={styles.brandTextGroup}>
-              <Text style={styles.headerTitle}>Daily Summary</Text>
-              <Text style={styles.headerSubtitle}>
-                Track revenue and order trends across your restaurant.
-              </Text>
-            </View>
-          </View>
-
-          <TouchableOpacity
-            onPress={() => setSidebarVisible(true)}
-            style={styles.hamburgerWrapper}
-          >
-            <Text style={styles.hamburger}>☰</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
+      <PageHeader
+        title="Daily Summary"
+        subtitle="Track revenue and order trends across your restaurant."
+        onMenuPress={() => setSidebarVisible(true)}
+      />
 
       <View style={styles.infoBanner}>
         <Text style={styles.infoText}>
@@ -143,9 +125,7 @@ export default function AllSummaryScreen() {
           >
             <View style={styles.cardHeaderRow}>
               <Text style={styles.date}>{summary.date}</Text>
-              <Text style={styles.badge}>
-                £{summary.revenue.toFixed(2)}
-              </Text>
+              <Text style={styles.badge}>£{summary.revenue.toFixed(2)}</Text>
             </View>
             <Text style={styles.metricLabel}>Orders</Text>
             <Text style={styles.metricValue}>{summary.orderCount}</Text>
@@ -173,6 +153,7 @@ export default function AllSummaryScreen() {
           setSidebarVisible(false);
         }}
         pusherStatus={""}
+        restaurantName=""
       />
     </View>
   );
