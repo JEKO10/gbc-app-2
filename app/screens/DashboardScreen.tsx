@@ -384,6 +384,7 @@ const DashboardScreen = () => {
               item={item}
               liveOrders={liveOrders}
               updateOrderStatus={updateOrderStatus}
+              restaurantName={restaurantName}
             />
           )}
         />

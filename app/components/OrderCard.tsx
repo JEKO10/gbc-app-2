@@ -4,6 +4,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { statusOrder } from "@/constants/statusOrder";
+import { printOrder } from "@/utils/print";
 
 const STATUS_COLORS: Record<string, { background: string; text: string }> = {
   Pending: { background: "#fef9c3", text: "#a16207" },
@@ -19,10 +20,12 @@ const OrderCard = React.memo(
     item,
     liveOrders,
     updateOrderStatus,
+    restaurantName,
   }: {
     item: Order;
     liveOrders: Order[];
     updateOrderStatus: (id: string, status: string) => void;
+    restaurantName: string;
   }) => {
     const isLive = liveOrders.some((o) => o.id === item.id);
     const statusPalette = STATUS_COLORS[item.status] ??
@@ -145,7 +148,10 @@ const OrderCard = React.memo(
               </View>
             )}
 
-            <TouchableOpacity style={styles.printButton}>
+            <TouchableOpacity
+              style={styles.printButton}
+              onPress={() => printOrder(item, restaurantName)}
+            >
               <Ionicons name="print-outline" size={18} color="#ffffff" />
               <Text style={styles.printButtonText}>Print Ticket</Text>
             </TouchableOpacity>

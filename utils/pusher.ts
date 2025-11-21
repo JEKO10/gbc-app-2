@@ -3,6 +3,7 @@ import * as Notifications from "expo-notifications";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { Order } from "./types";
+import { printOrder } from "./print";
 
 type SetState<T> = React.Dispatch<React.SetStateAction<T>>;
 
@@ -131,6 +132,8 @@ export const setupPusher = async (
           trigger: null,
         }).then((id) => setNotificationId(id));
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+        await printOrder(data, restaurantName);
 
         try {
           await Audio.setAudioModeAsync({
